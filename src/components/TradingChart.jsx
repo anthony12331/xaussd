@@ -91,6 +91,10 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
       lineWidth: 1.5,
       priceScaleId: 'rsi_scale',
       title: 'RSI (14)',
+      priceFormat: {
+        type: 'custom',
+        formatter: (v) => v ? v.toFixed(1) : '',
+      },
     });
     rsiSeriesRef.current = rsiSeries;
 
@@ -100,7 +104,10 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
       lineWidth: 1,
       lineStyle: 2,
       priceScaleId: 'rsi_scale',
-      title: 'Overbought 70',
+      priceFormat: {
+        type: 'custom',
+        formatter: () => '70',
+      },
     });
     rsiOverboughtSeriesRef.current = rsiOverbought;
 
@@ -110,13 +117,16 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
       lineWidth: 1,
       lineStyle: 2,
       priceScaleId: 'rsi_scale',
-      title: 'Oversold 30',
+      priceFormat: {
+        type: 'custom',
+        formatter: () => '30',
+      },
     });
     rsiOversoldSeriesRef.current = rsiOversold;
 
     chart.priceScale('rsi_scale').applyOptions({
       scaleMargins: {
-        top: 0.75,
+        top: 0.76,
         bottom: 0.02,
       },
       autoScale: true,

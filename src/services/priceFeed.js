@@ -12,7 +12,7 @@ export const SYMBOLS = {
 };
 
 // Generate realistic historical candle data with strictly aligned timestamps
-export function generateInitialCandles(symbolKey, timeframe = '1m', count = 100) {
+export function generateInitialCandles(symbolKey, timeframe = '1m', count = 100, targetEndPrice = null) {
   const config = SYMBOLS[symbolKey] || SYMBOLS['XAUUSD'];
   const now = Math.floor(Date.now() / 1000);
   const tfSeconds = getTimeframeSeconds(timeframe);
@@ -43,6 +43,20 @@ export function generateInitialCandles(symbolKey, timeframe = '1m', count = 100)
     });
 
     currentPrice = close;
+  }
+
+  // Scale generated candles so final close aligns seamlessly with targetEndPrice if provided
+  if (targetEndPrice && typeof targetEndPrice === 'number' && targetEndPrice > 0 && candles.length > 0) {
+    const rawEndPrice = candles[candles.length - 1].close;
+    if (rawEndPrice > 0 && Math.abs(targetEndPrice - rawEndPrice) > 0.001) {
+      const ratio = targetEndPrice / rawEndPrice;
+      for (const c of candles) {
+        c.open = Number((c.open * ratio).toFixed(config.decimals));
+        c.high = Number((c.high * ratio).toFixed(config.decimals));
+        c.low = Number((c.low * ratio).toFixed(config.decimals));
+        c.close = Number((c.close * ratio).toFixed(config.decimals));
+      }
+    }
   }
 
   return candles;
@@ -77,6 +91,7 @@ export class PriceFeedManager {
   setSymbol(symbol) {
     if (this.symbol === symbol) return;
     this.symbol = symbol;
+    this.hasInitializedLivePrice = false;
     this.candles = generateInitialCandles(symbol, this.timeframe, 120);
     this.currentPrice = this.candles[this.candles.length - 1].close;
     this.reconnect();
@@ -85,7 +100,10 @@ export class PriceFeedManager {
   setTimeframe(tf) {
     if (this.timeframe === tf) return;
     this.timeframe = tf;
-    this.candles = generateInitialCandles(this.symbol, tf, 120);
+    const activePrice = (this.currentPrice && !isNaN(this.currentPrice) && this.currentPrice > 0)
+      ? this.currentPrice
+      : null;
+    this.candles = generateInitialCandles(this.symbol, tf, 120, activePrice);
     this.currentPrice = this.candles[this.candles.length - 1].close;
     this.notify();
   }
