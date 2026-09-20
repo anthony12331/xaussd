@@ -28,10 +28,11 @@ export default function AIChatModal({ analysis, symbolKey, currentPrice, onClose
   };
 
   const quickQuestions = [
+    "Where is the good price to entry?",
+    "What is the percentage accuracy %?",
+    "What is the target profit?",
     "Should I buy now?",
-    "What is the Stop Loss?",
-    "Explain RSI & MACD metrics",
-    "What is the risk level?"
+    "What is the Stop Loss?"
   ];
 
   return (
