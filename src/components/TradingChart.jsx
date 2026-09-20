@@ -180,7 +180,17 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
     if (!candles || candles.length === 0) return;
     if (!candlestickSeriesRef.current) return;
 
-    const candleData = candles.map(c => ({
+    // Deduplicate and strictly sort candles by timestamp ascending
+    const timeMap = new Map();
+    for (const c of candles) {
+      if (c && typeof c.time === 'number' && !isNaN(c.time)) {
+        timeMap.set(c.time, c);
+      }
+    }
+    const cleanCandles = Array.from(timeMap.values()).sort((a, b) => a.time - b.time);
+    if (cleanCandles.length === 0) return;
+
+    const candleData = cleanCandles.map(c => ({
       time: c.time,
       open: c.open,
       high: c.high,
@@ -193,7 +203,7 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
     // Update Volume
     if (volumeSeriesRef.current) {
       if (showVolume) {
-        const volumeData = candles.map(c => ({
+        const volumeData = cleanCandles.map(c => ({
           time: c.time,
           value: c.volume,
           color: c.close >= c.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)'
@@ -211,28 +221,28 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
     const bbUpperData = [];
     const bbLowerData = [];
 
-    for (let i = 10; i < candles.length; i++) {
-      const subSlice = candles.slice(0, i + 1);
+    for (let i = 0; i < cleanCandles.length; i++) {
+      const subSlice = cleanCandles.slice(0, i + 1);
 
-      if (showEMA9) {
+      if (showEMA9 && i >= 8) {
         const ema9 = calculateEMA(subSlice, 9);
-        if (ema9) ema9Data.push({ time: candles[i].time, value: ema9 });
+        if (ema9 !== null && !isNaN(ema9)) ema9Data.push({ time: cleanCandles[i].time, value: ema9 });
       }
 
-      if (showEMA21 && i >= 22) {
+      if (showEMA21 && i >= 20) {
         const ema21 = calculateEMA(subSlice, 21);
-        if (ema21) ema21Data.push({ time: candles[i].time, value: ema21 });
+        if (ema21 !== null && !isNaN(ema21)) ema21Data.push({ time: cleanCandles[i].time, value: ema21 });
       }
 
-      if (showSMA50 && i >= 50) {
+      if (showSMA50 && i >= 49) {
         const sma50 = calculateSMA(subSlice, 50);
-        if (sma50) sma50Data.push({ time: candles[i].time, value: sma50 });
+        if (sma50 !== null && !isNaN(sma50)) sma50Data.push({ time: cleanCandles[i].time, value: sma50 });
       }
 
-      if (showBollinger && i >= 20) {
+      if (showBollinger && i >= 19) {
         const bb = calculateBollingerBands(subSlice, 20, 2);
-        if (bb.upper) bbUpperData.push({ time: candles[i].time, value: bb.upper });
-        if (bb.lower) bbLowerData.push({ time: candles[i].time, value: bb.lower });
+        if (bb && bb.upper !== null && !isNaN(bb.upper)) bbUpperData.push({ time: cleanCandles[i].time, value: bb.upper });
+        if (bb && bb.lower !== null && !isNaN(bb.lower)) bbLowerData.push({ time: cleanCandles[i].time, value: bb.lower });
       }
     }
 
@@ -268,6 +278,9 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
         text: `${detectedPattern.icon} ${detectedPattern.name}`
       });
     }
+
+    // Sort markers by timestamp ascending as required by Lightweight Charts
+    formattedMarkers.sort((a, b) => a.time - b.time);
 
     candlestickSeriesRef.current.setMarkers(formattedMarkers);
   }, [userMarkers, candles]);

@@ -11,17 +11,18 @@ export const SYMBOLS = {
   'ETHUSD': { name: 'Ethereum / US Dollar (ETH/USD)', basePrice: 3420.00, decimals: 2, tickSize: 0.50, isCrypto: true },
 };
 
-// Generate realistic historical candle data
+// Generate realistic historical candle data with strictly aligned timestamps
 export function generateInitialCandles(symbolKey, timeframe = '1m', count = 100) {
   const config = SYMBOLS[symbolKey] || SYMBOLS['XAUUSD'];
   const now = Math.floor(Date.now() / 1000);
   const tfSeconds = getTimeframeSeconds(timeframe);
   
+  const currentBarTime = Math.floor(now / tfSeconds) * tfSeconds;
+  const startTime = currentBarTime - ((count - 1) * tfSeconds);
+
   const candles = [];
   let currentPrice = config.basePrice;
   const volatility = currentPrice * 0.002; // 0.2% per step average
-
-  const startTime = now - (count * tfSeconds);
 
   for (let i = 0; i < count; i++) {
     const time = startTime + (i * tfSeconds);
@@ -266,6 +267,11 @@ export class PriceFeedManager {
     const now = Math.floor(Date.now() / 1000);
     const currentCandleTime = Math.floor(now / tfSec) * tfSec;
 
+    // Filter out any candles ahead of currentCandleTime (e.g. from timeframe switches)
+    if (this.candles.length > 0 && this.candles[this.candles.length - 1].time > currentCandleTime) {
+      this.candles = this.candles.filter(c => c.time <= currentCandleTime);
+    }
+
     let lastCandle = this.candles[this.candles.length - 1];
 
     if (!lastCandle || lastCandle.time < currentCandleTime) {
@@ -287,6 +293,13 @@ export class PriceFeedManager {
       lastCandle.close = price;
       lastCandle.volume += Math.floor(Math.random() * 3 + 1);
     }
+
+    // Deduplicate & strictly sort candles by timestamp ascending
+    const timeMap = new Map();
+    for (const c of this.candles) {
+      timeMap.set(c.time, c);
+    }
+    this.candles = Array.from(timeMap.values()).sort((a, b) => a.time - b.time);
 
     this.notify();
   }
