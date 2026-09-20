@@ -10,6 +10,7 @@ import OrderForm from './components/OrderForm';
 import PositionsTable from './components/PositionsTable';
 import AIBotConfigModal from './components/AIBotConfigModal';
 import AIChatModal from './components/AIChatModal';
+import WelcomeCapitalModal from './components/WelcomeCapitalModal';
 
 export default function App() {
   const [selectedSymbol, setSelectedSymbol] = useState('XAUUSD');
@@ -40,6 +41,7 @@ export default function App() {
   });
 
   // Modals state
+  const [showWelcomeModal, setShowWelcomeModal] = useState(true); // Prompts PHP money on open
   const [showBotModal, setShowBotModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
 
@@ -140,16 +142,18 @@ export default function App() {
     setDisplayCurrency(prev => prev === 'PHP' ? 'USD' : 'PHP');
   };
 
+  // Welcome PHP Capital Prompt Submit
+  const handleWelcomeCapitalSubmit = (phpCapital) => {
+    const usdVal = phpCapital / tradingState.usdToPhpRate;
+    if (tradingEngineRef.current) {
+      tradingEngineRef.current.resetAccount(usdVal);
+    }
+    setShowWelcomeModal(false);
+  };
+
   // Reset Balance
   const handleResetBalance = () => {
-    const input = window.prompt('Reset practice balance! Enter amount in PHP ₱ (or click OK for default ₱585,000 PHP / $10,000 USD):', '585000');
-    if (input !== null) {
-      const phpVal = parseFloat(input) || 585000;
-      const usdVal = phpVal / tradingState.usdToPhpRate;
-      if (tradingEngineRef.current) {
-        tradingEngineRef.current.resetAccount(usdVal);
-      }
-    }
+    setShowWelcomeModal(true);
   };
 
   return (
@@ -221,6 +225,14 @@ export default function App() {
           />
         </div>
       </main>
+
+      {/* Initial Welcome PHP Capital Prompt Modal */}
+      {showWelcomeModal && (
+        <WelcomeCapitalModal
+          onSubmitCapital={handleWelcomeCapitalSubmit}
+          usdToPhpRate={tradingState.usdToPhpRate}
+        />
+      )}
 
       {/* AI Bot Config Modal */}
       {showBotModal && (
