@@ -81,6 +81,83 @@ export function calculateBollingerBands(data, period = 20, multiplier = 2) {
   };
 }
 
+// Calculate RSI Divergence & Convergence (Huge Reversal / Continuation Confluence)
+export function detectRSIDivergence(candles) {
+  if (!candles || candles.length < 25) {
+    return { type: 'NONE', label: 'No Divergence', confluenceScore: 0, description: 'Gathering candle data...' };
+  }
+
+  // Calculate historical RSI values for lookback window
+  const rsiHistory = [];
+  const lookback = Math.min(30, candles.length);
+  const startIdx = candles.length - lookback;
+
+  for (let i = startIdx; i < candles.length; i++) {
+    const subSlice = candles.slice(0, i + 1);
+    const rsiVal = calculateRSI(subSlice, 14);
+    rsiHistory.push({
+      time: candles[i].time,
+      priceClose: candles[i].close,
+      priceLow: candles[i].low,
+      priceHigh: candles[i].high,
+      rsi: rsiVal
+    });
+  }
+
+  // Find two recent swing lows (for Bullish Divergence) and swing highs (for Bearish Divergence)
+  const len = rsiHistory.length;
+  const p1 = rsiHistory[len - 1];
+  const pMid = rsiHistory[Math.floor(len / 2)];
+  const pOld = rsiHistory[0];
+
+  // Check Bullish Reversal Divergence: Price Lower Low + RSI Higher Low
+  if (p1.priceLow < pMid.priceLow && p1.rsi > pMid.rsi && p1.rsi < 45) {
+    return {
+      type: 'BULLISH_DIVERGENCE',
+      label: '🟢 BULLISH REVERSAL DIVERGENCE',
+      confluenceScore: 35,
+      description: `Price made a Lower Low ($${p1.priceLow}) while RSI built Higher Low (${p1.rsi} vs ${pMid.rsi}) — High Probability Reversal UP!`
+    };
+  }
+
+  // Check Bearish Reversal Divergence: Price Higher High + RSI Lower High
+  if (p1.priceHigh > pMid.priceHigh && p1.rsi < pMid.rsi && p1.rsi > 55) {
+    return {
+      type: 'BEARISH_DIVERGENCE',
+      label: '🔴 BEARISH REVERSAL DIVERGENCE',
+      confluenceScore: -35,
+      description: `Price made a Higher High ($${p1.priceHigh}) while RSI weakened with Lower High (${p1.rsi} vs ${pMid.rsi}) — Imminent Reversal DOWN!`
+    };
+  }
+
+  // Check Bullish Trend Continuation (Convergence): Both Price and RSI making Higher Highs
+  if (p1.priceHigh > pMid.priceHigh && p1.rsi > pMid.rsi && p1.rsi > 50) {
+    return {
+      type: 'BULLISH_CONTINUATION',
+      label: '⚡ BULLISH TREND CONTINUATION',
+      confluenceScore: 20,
+      description: 'Price and RSI are converging upward in strong trend continuation momentum.'
+    };
+  }
+
+  // Check Bearish Trend Continuation (Convergence): Both Price and RSI making Lower Lows
+  if (p1.priceLow < pMid.priceLow && p1.rsi < pMid.rsi && p1.rsi < 50) {
+    return {
+      type: 'BEARISH_CONTINUATION',
+      label: '⚡ BEARISH TREND CONTINUATION',
+      confluenceScore: -20,
+      description: 'Price and RSI are converging downward in trend continuation momentum.'
+    };
+  }
+
+  return {
+    type: 'NEUTRAL',
+    label: '⚖️ RSI & PRICE IN SYNC',
+    confluenceScore: 0,
+    description: 'Price and RSI momentum are moving in standard alignment.'
+  };
+}
+
 // Main AI Analysis Evaluator
 export function analyzeMarket(candles, currentPrice, symbolKey = 'XAUUSD', dxyData = null) {
   if (!candles || candles.length < 20) {
@@ -99,52 +176,45 @@ export function analyzeMarket(candles, currentPrice, symbolKey = 'XAUUSD', dxyDa
   const ema21 = calculateEMA(candles, 21) || currentPrice;
   const sma50 = calculateSMA(candles, Math.min(50, candles.length)) || currentPrice;
   const bb = calculateBollingerBands(candles, 20, 2);
+  const divergence = detectRSIDivergence(candles);
 
   // Scoring algorithm (-100 to +100)
   let score = 0;
   const reasons = [];
 
-  // 1. RSI Signals
-  if (rsi < 30) {
-    score += 35;
-    reasons.push(`RSI is oversold at ${rsi} (strong reversal buy zone).`);
-  } else if (rsi > 70) {
-    score -= 35;
-    reasons.push(`RSI is overbought at ${rsi} (bearish pull-back danger).`);
-  } else if (rsi > 50 && rsi <= 65) {
-    score += 15;
-    reasons.push(`RSI is in healthy bullish momentum zone (${rsi}).`);
-  } else if (rsi < 50 && rsi >= 35) {
-    score -= 15;
-    reasons.push(`RSI indicates mild bearish momentum (${rsi}).`);
+  // 1. RSI Divergence & Convergence Confluence (Highest Weight)
+  if (divergence.confluenceScore !== 0) {
+    score += divergence.confluenceScore;
+    reasons.push(divergence.description);
   }
 
-  // 2. MACD Signals
-  if (macd.histogram > 0 && macd.macd > macd.signal) {
-    score += 25;
-    reasons.push('MACD histogram is positive with bullish momentum crossover.');
-  } else if (macd.histogram < 0 && macd.macd < macd.signal) {
-    score -= 25;
-    reasons.push('MACD histogram is negative with bearish breakdown momentum.');
-  }
-
-  // 3. Moving Average Alignment (Golden / Death Cross)
-  if (ema9 > ema21) {
+  // 2. EMA Trend Alignment & Reversal Confluence
+  const isEMA9Above21 = ema9 > ema21;
+  if (isEMA9Above21) {
     score += 20;
-    if (currentPrice > sma50) {
-      score += 10;
-      reasons.push('Short-term EMA(9) is above EMA(21) and price trades above SMA(50) trend line.');
+    if (divergence.type === 'BULLISH_DIVERGENCE' || divergence.type === 'BULLISH_CONTINUATION') {
+      score += 15; // Extra confluence bonus!
+      reasons.push('🔥 HIGH CONFLUENCE: EMA 9 > 21 golden cross aligns with RSI bullish signal!');
     } else {
-      reasons.push('Short-term EMA(9) crossed above EMA(21).');
+      reasons.push(`EMA(9) is leading above EMA(21) ($${ema9} > $${ema21}).`);
     }
   } else {
     score -= 20;
-    if (currentPrice < sma50) {
-      score -= 10;
-      reasons.push('Short-term EMA(9) is below EMA(21) and price trades below SMA(50) resistance.');
+    if (divergence.type === 'BEARISH_DIVERGENCE' || divergence.type === 'BEARISH_CONTINUATION') {
+      score -= 15; // Extra confluence bonus!
+      reasons.push('🔥 HIGH CONFLUENCE: EMA 9 < 21 death cross aligns with RSI bearish reversal!');
     } else {
-      reasons.push('EMA(9) is below EMA(21) indicating short-term weakness.');
+      reasons.push(`EMA(9) is leading below EMA(21) ($${ema9} < $${ema21}).`);
     }
+  }
+
+  // 3. RSI Overbought / Oversold Signals
+  if (rsi < 30) {
+    score += 25;
+    reasons.push(`RSI is oversold at ${rsi} (strong buy dip).`);
+  } else if (rsi > 70) {
+    score -= 25;
+    reasons.push(`RSI is overbought at ${rsi} (sell top risk).`);
   }
 
   // 4. Bollinger Band Position
@@ -223,6 +293,7 @@ export function analyzeMarket(candles, currentPrice, symbolKey = 'XAUUSD', dxyDa
     score,
     reasoning: reasons.join(' '),
     holdingDuration,
+    divergence,
     actionPlan: {
       action: isBullish ? 'BUY / LONG' : signal.includes('SELL') ? 'SELL / SHORT' : 'WAIT / STANDBY',
       asset: symbolKey,

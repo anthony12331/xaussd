@@ -147,11 +147,35 @@ export default function AIAnalysisPanel({ analysis, symbolKey, currentPrice, onO
         </div>
       </div>
 
+      {/* RSI Divergence & EMA Confluence Card */}
+      {analysis.divergence && (
+        <div className={`p-3 rounded-xl border text-xs flex flex-col gap-1 ${
+          analysis.divergence.type.includes('BULLISH') 
+            ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300' 
+            : analysis.divergence.type.includes('BEARISH') 
+            ? 'bg-rose-950/40 border-rose-500/40 text-rose-300' 
+            : 'bg-dark-900 border-dark-600 text-gray-300'
+        }`}>
+          <div className="flex items-center justify-between font-extrabold text-xs">
+            <span className="flex items-center gap-1.5">
+              <Zap className="w-4 h-4 text-trade-gold animate-bounce" />
+              {analysis.divergence.label}
+            </span>
+            <span className="font-mono text-[10px] bg-dark-800 px-2 py-0.5 rounded border border-dark-600">
+              EMA 9: ${indicators.ema9} | EMA 21: ${indicators.ema21}
+            </span>
+          </div>
+          <p className="text-[11px] opacity-90 font-sans leading-relaxed">
+            {analysis.divergence.description}
+          </p>
+        </div>
+      )}
+
       {/* Natural Language AI Rationale */}
       <div className="bg-dark-900/80 border border-dark-600/80 p-3.5 rounded-lg text-xs">
         <div className="flex items-center gap-1.5 font-bold text-gray-300 mb-1.5">
           <Brain className="w-4 h-4 text-trade-gold" />
-          <span>AI Technical Rationale</span>
+          <span>AI Technical Rationale & Confluence</span>
         </div>
         <p className="text-gray-300 leading-relaxed font-sans">{reasoning}</p>
       </div>
