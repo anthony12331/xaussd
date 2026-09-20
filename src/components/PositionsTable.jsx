@@ -1,19 +1,15 @@
 import React, { useState } from 'react';
 import { SYMBOLS } from '../services/priceFeed';
 import { 
-  XCircle, 
-  CheckCircle, 
   History, 
   ListOrdered, 
-  Bot, 
-  ArrowUpRight, 
-  ArrowDownRight,
-  ShieldAlert,
-  Target
+  Bot
 } from 'lucide-react';
 
-export default function PositionsTable({ openPositions, closedTrades, botLogs, onClosePosition }) {
+export default function PositionsTable({ openPositions, closedTrades, botLogs, onClosePosition, displayCurrency = 'USD', usdToPhpRate = 58.50 }) {
   const [activeTab, setActiveTab] = useState('POSITIONS'); // 'POSITIONS' | 'HISTORY' | 'BOT_LOGS'
+
+  const isPHP = displayCurrency === 'PHP';
 
   return (
     <div className="bg-dark-800 rounded-xl border border-dark-600 overflow-hidden flex flex-col h-full shadow-xl">
@@ -81,6 +77,8 @@ export default function PositionsTable({ openPositions, closedTrades, botLogs, o
                     const isProfit = pos.pnl >= 0;
                     const decimals = SYMBOLS[pos.symbol]?.decimals || 2;
 
+                    const pnlPHP = pos.pnl * usdToPhpRate;
+
                     return (
                       <tr key={pos.id} className="hover:bg-dark-700/50 font-mono transition">
                         <td className="py-2.5 px-3 font-bold text-white font-sans flex items-center gap-1">
@@ -105,7 +103,10 @@ export default function PositionsTable({ openPositions, closedTrades, botLogs, o
                         </td>
                         <td className="py-2.5 px-3 font-bold">
                           <div className={isProfit ? 'text-emerald-400' : 'text-rose-400'}>
-                            {isProfit ? '+' : ''}${pos.pnl.toFixed(2)} ({isProfit ? '+' : ''}{pos.pnlPercent}%)
+                            {isProfit ? '+' : ''}₱{pnlPHP.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PHP
+                            <span className="text-[10px] block opacity-80">
+                              ({isProfit ? '+' : ''}${pos.pnl.toFixed(2)} | {pos.pnlPercent}%)
+                            </span>
                           </div>
                         </td>
                         <td className="py-2.5 px-3 text-right">
@@ -149,6 +150,7 @@ export default function PositionsTable({ openPositions, closedTrades, botLogs, o
                   {closedTrades.map((trade) => {
                     const isProfit = trade.realizedPnl >= 0;
                     const decimals = SYMBOLS[trade.symbol]?.decimals || 2;
+                    const pnlPHP = trade.realizedPnl * usdToPhpRate;
 
                     return (
                       <tr key={trade.id} className="hover:bg-dark-700/50 font-mono transition">
@@ -167,7 +169,10 @@ export default function PositionsTable({ openPositions, closedTrades, botLogs, o
                         </td>
                         <td className="py-2 px-3 font-bold">
                           <span className={isProfit ? 'text-emerald-400' : 'text-rose-400'}>
-                            {isProfit ? '+' : ''}${trade.realizedPnl} ({trade.pnlPercent}%)
+                            {isProfit ? '+' : ''}₱{pnlPHP.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PHP
+                            <span className="text-[10px] block opacity-80">
+                              ({isProfit ? '+' : ''}${trade.realizedPnl} | {trade.pnlPercent}%)
+                            </span>
                           </span>
                         </td>
                         <td className="py-2 px-3 text-gray-400 font-sans text-[11px]">{trade.closeReason}</td>

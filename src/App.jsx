@@ -16,6 +16,7 @@ export default function App() {
   const [timeframe, setTimeframe] = useState('1m');
   const [speed, setSpeed] = useState(1);
   const [isPaused, setIsPaused] = useState(false);
+  const [displayCurrency, setDisplayCurrency] = useState('PHP'); // Default to PHP ₱
 
   const [feedData, setFeedData] = useState({ currentPrice: 0, candles: [] });
   const [previousPrice, setPreviousPrice] = useState(0);
@@ -25,9 +26,12 @@ export default function App() {
   // Trading engine state
   const [tradingState, setTradingState] = useState({
     balance: 10000,
+    balancePHP: 585000,
     equity: 10000,
+    equityPHP: 585000,
     marginUsed: 0,
     freeMargin: 10000,
+    usdToPhpRate: 58.50,
     openPositions: [],
     closedTrades: [],
     botConfig: { enabled: false, riskPercent: 2.0, maxPositions: 2, minConfidence: 75, leverage: 10, strategy: 'TREND_AI' },
@@ -131,11 +135,19 @@ export default function App() {
     }
   };
 
+  // Toggle Display Currency (PHP ₱ vs USD $)
+  const handleToggleCurrency = () => {
+    setDisplayCurrency(prev => prev === 'PHP' ? 'USD' : 'PHP');
+  };
+
   // Reset Balance
   const handleResetBalance = () => {
-    if (window.confirm('Reset paper trading balance back to $10,000 USD?')) {
+    const input = window.prompt('Reset practice balance! Enter amount in PHP ₱ (or click OK for default ₱585,000 PHP / $10,000 USD):', '585000');
+    if (input !== null) {
+      const phpVal = parseFloat(input) || 585000;
+      const usdVal = phpVal / tradingState.usdToPhpRate;
       if (tradingEngineRef.current) {
-        tradingEngineRef.current.resetAccount(10000);
+        tradingEngineRef.current.resetAccount(usdVal);
       }
     }
   };
@@ -157,6 +169,8 @@ export default function App() {
         tradingState={tradingState}
         onResetBalance={handleResetBalance}
         onOpenBotConfig={() => setShowBotModal(true)}
+        displayCurrency={displayCurrency}
+        onToggleCurrency={handleToggleCurrency}
       />
 
       {/* Main Workspace Layout */}
@@ -179,6 +193,8 @@ export default function App() {
               closedTrades={tradingState.closedTrades}
               botLogs={tradingState.botLogs}
               onClosePosition={handleClosePosition}
+              displayCurrency={displayCurrency}
+              usdToPhpRate={tradingState.usdToPhpRate}
             />
           </div>
         </div>
@@ -200,6 +216,8 @@ export default function App() {
             aiAnalysis={aiAnalysis}
             onExecuteOrder={handleExecuteOrder}
             freeMargin={tradingState.freeMargin}
+            displayCurrency={displayCurrency}
+            usdToPhpRate={tradingState.usdToPhpRate}
           />
         </div>
       </main>

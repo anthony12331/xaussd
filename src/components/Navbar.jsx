@@ -3,14 +3,12 @@ import { SYMBOLS } from '../services/priceFeed';
 import { 
   Play, 
   Pause, 
-  Zap, 
   RotateCcw, 
   Bot, 
   TrendingUp, 
   TrendingDown, 
-  DollarSign, 
-  Layers,
-  Activity
+  Activity,
+  Coins
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -26,13 +24,17 @@ export default function Navbar({
   previousPrice,
   tradingState,
   onResetBalance,
-  onOpenBotConfig
+  onOpenBotConfig,
+  displayCurrency,
+  onToggleCurrency
 }) {
   const symbolInfo = SYMBOLS[selectedSymbol] || SYMBOLS['XAUUSD'];
   const priceChange = previousPrice ? currentPrice - previousPrice : 0;
   const isUp = priceChange >= 0;
 
-  const { equity, balance, stats, botConfig } = tradingState;
+  const { equity, equityPHP, stats, botConfig, usdToPhpRate } = tradingState;
+
+  const isPHP = displayCurrency === 'PHP';
 
   return (
     <header className="bg-dark-800 border-b border-dark-600 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-sm">
@@ -110,21 +112,35 @@ export default function Navbar({
         ))}
       </div>
 
-      {/* Right section: Account Stats & AI Bot Toggle */}
+      {/* Right section: Currency Switcher, Account Stats & AI Bot Toggle */}
       <div className="flex items-center gap-3">
+        {/* PHP vs USD Currency Switcher */}
+        <button
+          onClick={onToggleCurrency}
+          className="flex items-center gap-1 bg-dark-900 hover:bg-dark-700 border border-dark-600 px-2.5 py-1.5 rounded-lg text-xs font-bold text-trade-gold transition"
+          title={`Switch Display Currency (Current: ${displayCurrency}) | Rate: $1 = ₱${usdToPhpRate}`}
+        >
+          <Coins className="w-4 h-4 text-trade-gold" />
+          <span>{isPHP ? '₱ PHP' : '$ USD'}</span>
+        </button>
+
         {/* Equity & Balance */}
         <div className="flex items-center gap-3 bg-dark-900 border border-dark-600 px-3 py-1 rounded-lg">
           <div>
-            <div className="text-[10px] text-gray-400">EQUITY</div>
-            <div className="font-mono font-bold text-white text-sm">
-              ${equity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <div className="text-[10px] text-gray-400 font-semibold uppercase">EQUITY ({displayCurrency})</div>
+            <div className="font-mono font-extrabold text-white text-sm">
+              {isPHP ? (
+                `₱${(equityPHP || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              ) : (
+                `$${(equity || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              )}
             </div>
           </div>
 
           <div className="h-6 w-px bg-dark-600"></div>
 
           <div>
-            <div className="text-[10px] text-gray-400">WIN RATE</div>
+            <div className="text-[10px] text-gray-400 font-semibold uppercase">WIN RATE</div>
             <div className="font-mono font-bold text-trade-green text-sm">
               {stats.winRate}%
             </div>
@@ -148,7 +164,7 @@ export default function Navbar({
         <button
           onClick={onResetBalance}
           className="p-1.5 bg-dark-700 hover:bg-dark-600 border border-dark-600 text-gray-400 hover:text-white rounded-lg transition"
-          title="Reset Practice Balance ($10,000)"
+          title="Reset Practice Balance"
         >
           <RotateCcw className="w-4 h-4" />
         </button>

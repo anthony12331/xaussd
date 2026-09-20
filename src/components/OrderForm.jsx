@@ -1,9 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { SYMBOLS } from '../services/priceFeed';
-import { TrendingUp, TrendingDown, ShieldAlert, Target, Sparkles } from 'lucide-react';
+import { TrendingUp, TrendingDown, ShieldAlert, Target, Sparkles, Coins } from 'lucide-react';
 
-export default function OrderForm({ selectedSymbol, currentPrice, aiAnalysis, onExecuteOrder, freeMargin }) {
+export default function OrderForm({ 
+  selectedSymbol, 
+  currentPrice, 
+  aiAnalysis, 
+  onExecuteOrder, 
+  freeMargin,
+  displayCurrency = 'USD',
+  usdToPhpRate = 58.50
+}) {
   const [orderType, setOrderType] = useState('MARKET'); // 'MARKET' | 'LIMIT'
+  const [sizeMode, setSizeMode] = useState('PHP'); // 'PHP' | 'LOTS'
+  const [phpAmount, setPhpAmount] = useState(10000); // Default ₱10,000 PHP
   const [lotSize, setLotSize] = useState(1.0);
   const [leverage, setLeverage] = useState(10);
   const [stopLoss, setStopLoss] = useState('');
@@ -13,10 +23,16 @@ export default function OrderForm({ selectedSymbol, currentPrice, aiAnalysis, on
   const symbolInfo = SYMBOLS[selectedSymbol] || SYMBOLS['XAUUSD'];
   const contractUnits = selectedSymbol === 'XAUUSD' ? 100 : selectedSymbol === 'BTCUSD' ? 1 : selectedSymbol === 'ETHUSD' ? 10 : 1000;
 
-  const positionValue = (currentPrice || 0) * lotSize * contractUnits;
-  const estimatedMargin = positionValue / leverage;
+  // Compute calculated lot size from PHP input if in PHP mode
+  const effectiveLotSize = sizeMode === 'PHP'
+    ? Math.max(0.01, Number(((phpAmount / usdToPhpRate) * leverage / (currentPrice * contractUnits)).toFixed(2)))
+    : lotSize;
 
-  // Auto fill SL/TP from AI analysis on request
+  const positionValueUSD = (currentPrice || 0) * effectiveLotSize * contractUnits;
+  const estimatedMarginUSD = positionValueUSD / leverage;
+  const estimatedMarginPHP = estimatedMarginUSD * usdToPhpRate;
+
+  // Auto fill SL/TP from AI analysis
   const fillAITargets = () => {
     if (aiAnalysis && aiAnalysis.targets) {
       setStopLoss(aiAnalysis.targets.sl.toString());
@@ -36,7 +52,7 @@ export default function OrderForm({ selectedSymbol, currentPrice, aiAnalysis, on
       symbol: selectedSymbol,
       type, // 'BUY' or 'SELL'
       price: execPrice,
-      lotSize: parseFloat(lotSize),
+      lotSize: effectiveLotSize,
       leverage: parseInt(leverage),
       stopLoss: stopLoss ? parseFloat(stopLoss) : null,
       takeProfit: takeProfit ? parseFloat(takeProfit) : null
@@ -79,33 +95,91 @@ export default function OrderForm({ selectedSymbol, currentPrice, aiAnalysis, on
         </div>
       )}
 
-      {/* Lot Size Selector */}
+      {/* Position Sizing Mode Switcher (PHP ₱ vs LOTS) */}
       <div>
-        <div className="flex justify-between items-center mb-1">
-          <label className="text-xs text-gray-400">Position Size (Lots)</label>
-          <span className="text-xs text-gray-400 font-mono">1 Lot = {contractUnits} units</span>
-        </div>
-        <div className="grid grid-cols-5 gap-1.5 mb-2">
-          {[0.1, 0.5, 1.0, 2.0, 5.0].map((size) => (
+        <div className="flex justify-between items-center mb-1.5">
+          <label className="text-xs font-semibold text-gray-300 flex items-center gap-1">
+            <Coins className="w-3.5 h-3.5 text-trade-gold" /> Order Capital Input Mode
+          </label>
+
+          <div className="flex bg-dark-900 p-0.5 rounded border border-dark-600 text-[11px]">
             <button
-              key={size}
-              onClick={() => setLotSize(size)}
-              className={`py-1 text-xs font-mono font-bold rounded border ${
-                lotSize === size ? 'bg-trade-accent border-trade-accent text-white' : 'bg-dark-900 border-dark-600 text-gray-300 hover:border-gray-500'
-              }`}
+              onClick={() => setSizeMode('PHP')}
+              className={`px-2 py-0.5 font-bold rounded ${sizeMode === 'PHP' ? 'bg-trade-gold text-dark-900' : 'text-gray-400'}`}
             >
-              {size}
+              ₱ PHP Money
             </button>
-          ))}
+            <button
+              onClick={() => setSizeMode('LOTS')}
+              className={`px-2 py-0.5 font-bold rounded ${sizeMode === 'LOTS' ? 'bg-trade-accent text-white' : 'text-gray-400'}`}
+            >
+              Lots
+            </button>
+          </div>
         </div>
-        <input
-          type="number"
-          step="0.1"
-          min="0.01"
-          value={lotSize}
-          onChange={(e) => setLotSize(Math.max(0.01, parseFloat(e.target.value) || 0.1))}
-          className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-1.5 font-mono text-sm text-white focus:outline-none focus:border-trade-accent"
-        />
+
+        {/* Input by PHP Money */}
+        {sizeMode === 'PHP' ? (
+          <div>
+            <div className="grid grid-cols-5 gap-1.5 mb-2">
+              {[1000, 5000, 10000, 25000, 50000].map((amt) => (
+                <button
+                  key={amt}
+                  onClick={() => setPhpAmount(amt)}
+                  className={`py-1 text-xs font-mono font-bold rounded border ${
+                    phpAmount === amt ? 'bg-trade-gold text-dark-900 border-trade-gold font-extrabold' : 'bg-dark-900 border-dark-600 text-gray-300 hover:border-gray-500'
+                  }`}
+                >
+                  ₱{amt.toLocaleString()}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative">
+              <span className="absolute left-3 top-2 text-trade-gold font-mono font-bold">₱</span>
+              <input
+                type="number"
+                step="500"
+                min="100"
+                value={phpAmount}
+                onChange={(e) => setPhpAmount(Math.max(100, parseFloat(e.target.value) || 1000))}
+                className="w-full bg-dark-900 border border-dark-600 rounded-lg pl-8 pr-3 py-1.5 font-mono text-sm text-white focus:outline-none focus:border-trade-gold"
+                placeholder="Enter PHP capital to buy"
+              />
+            </div>
+
+            <div className="flex justify-between items-center text-[11px] font-mono text-gray-400 mt-1">
+              <span>Transforms to: <strong className="text-white">${(phpAmount / usdToPhpRate).toFixed(2)} USD</strong></span>
+              <span>Buys: <strong className="text-trade-accent">{effectiveLotSize} Lot(s)</strong></span>
+            </div>
+          </div>
+        ) : (
+          /* Input by Lots */
+          <div>
+            <div className="grid grid-cols-5 gap-1.5 mb-2">
+              {[0.1, 0.5, 1.0, 2.0, 5.0].map((size) => (
+                <button
+                  key={size}
+                  onClick={() => setLotSize(size)}
+                  className={`py-1 text-xs font-mono font-bold rounded border ${
+                    lotSize === size ? 'bg-trade-accent border-trade-accent text-white' : 'bg-dark-900 border-dark-600 text-gray-300 hover:border-gray-500'
+                  }`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+
+            <input
+              type="number"
+              step="0.1"
+              min="0.01"
+              value={lotSize}
+              onChange={(e) => setLotSize(Math.max(0.01, parseFloat(e.target.value) || 0.1))}
+              className="w-full bg-dark-900 border border-dark-600 rounded-lg px-3 py-1.5 font-mono text-sm text-white focus:outline-none focus:border-trade-accent"
+            />
+          </div>
+        )}
       </div>
 
       {/* Leverage Selector */}
@@ -170,8 +244,8 @@ export default function OrderForm({ selectedSymbol, currentPrice, aiAnalysis, on
       {/* Margin Summary */}
       <div className="bg-dark-900 p-2.5 rounded-lg border border-dark-600 text-xs flex justify-between items-center font-mono">
         <span className="text-gray-400">Est. Margin Needed:</span>
-        <span className={`font-bold ${estimatedMargin > freeMargin ? 'text-rose-400' : 'text-white'}`}>
-          ${estimatedMargin.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        <span className={`font-bold ${estimatedMarginUSD > freeMargin ? 'text-rose-400' : 'text-white'}`}>
+          ₱{estimatedMarginPHP.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PHP (${estimatedMarginUSD.toFixed(2)} USD)
         </span>
       </div>
 
@@ -182,7 +256,7 @@ export default function OrderForm({ selectedSymbol, currentPrice, aiAnalysis, on
           className="bg-trade-green hover:bg-trade-green-hover text-white font-extrabold py-3 px-4 rounded-xl shadow-lg flex flex-col items-center justify-center transition active:scale-95 glow-green"
         >
           <div className="flex items-center gap-1 text-base">
-            <TrendingUp className="w-5 h-5" /> BUY / LONG
+            <TrendingUp className="w-5 h-5" /> BUY {selectedSymbol}
           </div>
           <span className="text-[11px] font-normal opacity-90">
             ${currentPrice ? currentPrice.toFixed(symbolInfo.decimals) : '0.00'}
@@ -194,7 +268,7 @@ export default function OrderForm({ selectedSymbol, currentPrice, aiAnalysis, on
           className="bg-trade-red hover:bg-trade-red-hover text-white font-extrabold py-3 px-4 rounded-xl shadow-lg flex flex-col items-center justify-center transition active:scale-95 glow-red"
         >
           <div className="flex items-center gap-1 text-base">
-            <TrendingDown className="w-5 h-5" /> SELL / SHORT
+            <TrendingDown className="w-5 h-5" /> SELL {selectedSymbol}
           </div>
           <span className="text-[11px] font-normal opacity-90">
             ${currentPrice ? currentPrice.toFixed(symbolInfo.decimals) : '0.00'}

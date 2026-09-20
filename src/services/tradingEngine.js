@@ -38,11 +38,17 @@ export class TradingEngine {
 
   notify() {
     const stats = this.getStats();
+    const rate = this.usdToPhpRate || 58.50;
     const state = {
       balance: this.balance,
+      balancePHP: Number((this.balance * rate).toFixed(2)),
       equity: this.equity,
+      equityPHP: Number((this.equity * rate).toFixed(2)),
       marginUsed: this.marginUsed,
+      marginUsedPHP: Number((this.marginUsed * rate).toFixed(2)),
       freeMargin: this.equity - this.marginUsed,
+      freeMarginPHP: Number(((this.equity - this.marginUsed) * rate).toFixed(2)),
+      usdToPhpRate: rate,
       openPositions: [...this.openPositions],
       closedTrades: [...this.closedTrades],
       botConfig: { ...this.botConfig },
