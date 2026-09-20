@@ -209,16 +209,16 @@ export function analyzeMarket(candles, currentPrice, symbolKey = 'XAUUSD', dxyDa
       signal: 'NEUTRAL',
       confidence: 50,
       reasoning: 'Gathering initial candle history to compute reliable technical metrics...',
-      indicators: { rsi: 50, macd: { histogram: 0 }, ema9: currentPrice, ema21: currentPrice },
+      indicators: { rsi: 50, macd: { histogram: 0 }, ema5: currentPrice, ema13: currentPrice, ema89: currentPrice },
       targets: { entry: currentPrice, sl: currentPrice * 0.99, tp1: currentPrice * 1.01, tp2: currentPrice * 1.02 }
     };
   }
 
   const rsi = calculateRSI(candles, 14);
   const macd = calculateMACD(candles);
-  const ema9 = calculateEMA(candles, 9) || currentPrice;
-  const ema21 = calculateEMA(candles, 21) || currentPrice;
-  const sma50 = calculateSMA(candles, Math.min(50, candles.length)) || currentPrice;
+  const ema5 = calculateEMA(candles, 5) || currentPrice;
+  const ema13 = calculateEMA(candles, 13) || currentPrice;
+  const ema89 = calculateEMA(candles, Math.min(89, candles.length)) || currentPrice;
   const bb = calculateBollingerBands(candles, 20, 2);
   const divergence = detectRSIDivergence(candles);
   const candlePattern = detectCandlestickPattern(candles);
@@ -239,23 +239,25 @@ export function analyzeMarket(candles, currentPrice, symbolKey = 'XAUUSD', dxyDa
     reasons.push(divergence.description);
   }
 
-  // 2. EMA Trend Alignment & Reversal Confluence
-  const isEMA9Above21 = ema9 > ema21;
-  if (isEMA9Above21) {
+  // 2. EMA 5, 13, 89 Trend Alignment & Reversal Confluence
+  const isEMA5Above13 = ema5 > ema13;
+  const isEMA13Above89 = ema13 > ema89;
+
+  if (isEMA5Above13) {
     score += 20;
-    if (divergence.type === 'BULLISH_DIVERGENCE' || divergence.type === 'BULLISH_CONTINUATION') {
-      score += 15; // Extra confluence bonus!
-      reasons.push('🔥 HIGH CONFLUENCE: EMA 9 > 21 golden cross aligns with RSI bullish signal!');
+    if (isEMA13Above89) {
+      score += 15; // Extra confluence bonus for full bullish alignment!
+      reasons.push(`🔥 HIGH CONFLUENCE: EMA(5) > EMA(13) > EMA(89) ($${ema5.toFixed(2)} > $${ema13.toFixed(2)} > $${ema89.toFixed(2)}) — Strong Bullish Trend Alignment!`);
     } else {
-      reasons.push(`EMA(9) is leading above EMA(21) ($${ema9} > $${ema21}).`);
+      reasons.push(`EMA(5) fast line crossed above EMA(13) ($${ema5.toFixed(2)} > $${ema13.toFixed(2)}).`);
     }
   } else {
     score -= 20;
-    if (divergence.type === 'BEARISH_DIVERGENCE' || divergence.type === 'BEARISH_CONTINUATION') {
-      score -= 15; // Extra confluence bonus!
-      reasons.push('🔥 HIGH CONFLUENCE: EMA 9 < 21 death cross aligns with RSI bearish reversal!');
+    if (!isEMA13Above89) {
+      score -= 15; // Extra confluence bonus for full bearish alignment!
+      reasons.push(`⚠️ BEARISH CONFLUENCE: EMA(5) < EMA(13) < EMA(89) ($${ema5.toFixed(2)} < $${ema13.toFixed(2)} < $${ema89.toFixed(2)}) — Bearish Trend Alignment!`);
     } else {
-      reasons.push(`EMA(9) is leading below EMA(21) ($${ema9} < $${ema21}).`);
+      reasons.push(`EMA(5) fast line crossed below EMA(13) ($${ema5.toFixed(2)} < $${ema13.toFixed(2)}).`);
     }
   }
 
@@ -358,9 +360,9 @@ export function analyzeMarket(candles, currentPrice, symbolKey = 'XAUUSD', dxyDa
     indicators: {
       rsi,
       macd,
-      ema9: Number(ema9.toFixed(decimals)),
-      ema21: Number(ema21.toFixed(decimals)),
-      sma50: Number(sma50.toFixed(decimals)),
+      ema5: Number(ema5.toFixed(decimals)),
+      ema13: Number(ema13.toFixed(decimals)),
+      ema89: Number(ema89.toFixed(decimals)),
       bb
     },
     targets: {
@@ -429,7 +431,7 @@ export function getAIChatResponse(userQuestion, analysis, symbolKey, currentPric
   }
 
   if (q.includes('rsi') || q.includes('indicator')) {
-    return `📊 **Technical Metrics Breakdown for ${symbolKey}**:\n- **RSI (14)**: ${indicators.rsi} (${indicators.rsi > 70 ? 'Overbought' : indicators.rsi < 30 ? 'Oversold' : 'Neutral'})\n- **EMA (9 / 21)**: ${indicators.ema9} / ${indicators.ema21}\n- **MACD Histogram**: ${indicators.macd.histogram}\n- **Bollinger Bands**: Upper: $${indicators.bb.upper}, Lower: $${indicators.bb.lower}`;
+    return `📊 **Technical Metrics Breakdown for ${symbolKey}**:\n- **RSI (14)**: ${indicators.rsi} (${indicators.rsi > 70 ? 'Overbought' : indicators.rsi < 30 ? 'Oversold' : 'Neutral'})\n- **EMA (5 / 13 / 89)**: ${indicators.ema5} / ${indicators.ema13} / ${indicators.ema89}\n- **MACD Histogram**: ${indicators.macd.histogram}\n- **Bollinger Bands**: Upper: $${indicators.bb.upper}, Lower: $${indicators.bb.lower}`;
   }
 
   if (q.includes('risk') || q.includes('stop loss') || q.includes('target')) {

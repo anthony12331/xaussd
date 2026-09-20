@@ -162,7 +162,7 @@ export default function AIAnalysisPanel({ analysis, symbolKey, currentPrice, onO
               {analysis.divergence.label}
             </span>
             <span className="font-mono text-[10px] bg-dark-800 px-2 py-0.5 rounded border border-dark-600">
-              EMA 9: ${indicators.ema9} | EMA 21: ${indicators.ema21}
+              EMA 5: ${indicators.ema5} | EMA 13: ${indicators.ema13} | EMA 89: ${indicators.ema89}
             </span>
           </div>
           <p className="text-[11px] opacity-90 font-sans leading-relaxed">
@@ -205,9 +205,9 @@ export default function AIAnalysisPanel({ analysis, symbolKey, currentPrice, onO
           </div>
 
           <div className="bg-dark-900 border border-dark-600 p-2 rounded-lg">
-            <div className="text-gray-400 text-[10px] font-semibold">EMA (9 / 21)</div>
+            <div className="text-gray-400 text-[10px] font-semibold">EMA (5 / 13 / 89)</div>
             <div className="font-mono font-bold text-white text-xs mt-0.5 truncate">
-              {indicators.ema9} / {indicators.ema21}
+              {indicators.ema5} / {indicators.ema13} / {indicators.ema89}
             </div>
           </div>
 

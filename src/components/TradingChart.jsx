@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType } from 'lightweight-charts';
 import { SYMBOLS } from '../services/priceFeed';
-import { calculateEMA, calculateSMA, calculateBollingerBands, detectCandlestickPattern } from '../services/aiAnalyzer';
-import { Eye, EyeOff, MapPin, Trash2, Sliders, Crosshair, PlusCircle } from 'lucide-react';
+import { calculateEMA, calculateBollingerBands, calculateRSI, detectCandlestickPattern } from '../services/aiAnalyzer';
+import { Trash2, Sliders, Crosshair, PlusCircle } from 'lucide-react';
 
 export default function TradingChart({ symbolKey, candles, timeframe }) {
   const chartContainerRef = useRef(null);
@@ -10,19 +10,21 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
 
   // Series references
   const candlestickSeriesRef = useRef(null);
-  const volumeSeriesRef = useRef(null);
-  const ema9SeriesRef = useRef(null);
-  const ema21SeriesRef = useRef(null);
-  const sma50SeriesRef = useRef(null);
+  const ema5SeriesRef = useRef(null);
+  const ema13SeriesRef = useRef(null);
+  const ema89SeriesRef = useRef(null);
   const bbUpperSeriesRef = useRef(null);
   const bbLowerSeriesRef = useRef(null);
+  const rsiSeriesRef = useRef(null);
+  const rsiOverboughtSeriesRef = useRef(null);
+  const rsiOversoldSeriesRef = useRef(null);
 
   // Indicator visibility toggles
-  const [showEMA9, setShowEMA9] = useState(true);
-  const [showEMA21, setShowEMA21] = useState(true);
-  const [showSMA50, setShowSMA50] = useState(true);
+  const [showEMA5, setShowEMA5] = useState(true);
+  const [showEMA13, setShowEMA13] = useState(true);
+  const [showEMA89, setShowEMA89] = useState(true);
   const [showBollinger, setShowBollinger] = useState(true);
-  const [showVolume, setShowVolume] = useState(true);
+  const [showRSI, setShowRSI] = useState(true);
 
   // User Markers / Custom Click Annotations State
   const [userMarkers, setUserMarkers] = useState([]);
@@ -53,8 +55,8 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
         borderColor: '#374151',
         autoScale: true,
         scaleMargins: {
-          top: 0.1,
-          bottom: 0.25,
+          top: 0.08,
+          bottom: 0.32,
         },
       },
       timeScale: {
@@ -83,45 +85,66 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
     });
     candlestickSeriesRef.current = candlestickSeries;
 
-    // Volume Series (Isolated Overlay Scale at the bottom)
-    const volumeSeries = chart.addHistogramSeries({
-      color: '#26a69a',
-      priceFormat: { type: 'volume' },
-      priceScaleId: 'volume_scale',
+    // RSI Sub-chart Series (Isolated Overlay Scale at bottom)
+    const rsiSeries = chart.addLineSeries({
+      color: '#e040fb', // Vivid Purple / Pink line for RSI
+      lineWidth: 1.5,
+      priceScaleId: 'rsi_scale',
+      title: 'RSI (14)',
     });
-    
-    chart.priceScale('volume_scale').applyOptions({
+    rsiSeriesRef.current = rsiSeries;
+
+    // RSI Overbought Level (70)
+    const rsiOverbought = chart.addLineSeries({
+      color: 'rgba(239, 83, 80, 0.6)', // Red dashed line
+      lineWidth: 1,
+      lineStyle: 2,
+      priceScaleId: 'rsi_scale',
+      title: 'Overbought 70',
+    });
+    rsiOverboughtSeriesRef.current = rsiOverbought;
+
+    // RSI Oversold Level (30)
+    const rsiOversold = chart.addLineSeries({
+      color: 'rgba(38, 166, 154, 0.6)', // Green dashed line
+      lineWidth: 1,
+      lineStyle: 2,
+      priceScaleId: 'rsi_scale',
+      title: 'Oversold 30',
+    });
+    rsiOversoldSeriesRef.current = rsiOversold;
+
+    chart.priceScale('rsi_scale').applyOptions({
       scaleMargins: {
-        top: 0.8,
-        bottom: 0,
+        top: 0.75,
+        bottom: 0.02,
       },
+      autoScale: true,
     });
 
-    volumeSeriesRef.current = volumeSeries;
-
-    // EMA 9 Series (Blue)
-    const ema9Series = chart.addLineSeries({
+    // EMA 5 Series (Blue)
+    const ema5Series = chart.addLineSeries({
       color: '#2962ff',
       lineWidth: 1.5,
-      title: 'EMA 9',
+      title: 'EMA 5',
     });
-    ema9SeriesRef.current = ema9Series;
+    ema5SeriesRef.current = ema5Series;
 
-    // EMA 21 Series (Orange)
-    const ema21Series = chart.addLineSeries({
+    // EMA 13 Series (Orange)
+    const ema13Series = chart.addLineSeries({
       color: '#ff6d00',
       lineWidth: 1.5,
-      title: 'EMA 21',
+      title: 'EMA 13',
     });
-    ema21SeriesRef.current = ema21Series;
+    ema13SeriesRef.current = ema13Series;
 
-    // SMA 50 Series (Purple)
-    const sma50Series = chart.addLineSeries({
+    // EMA 89 Series (Purple)
+    const ema89Series = chart.addLineSeries({
       color: '#a855f7',
       lineWidth: 1.5,
-      title: 'SMA 50',
+      title: 'EMA 89',
     });
-    sma50SeriesRef.current = sma50Series;
+    ema89SeriesRef.current = ema89Series;
 
     // Bollinger Bands Series (Upper & Lower Teal Lines)
     const bbUpperSeries = chart.addLineSeries({
@@ -200,59 +223,68 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
 
     candlestickSeriesRef.current.setData(candleData);
 
-    // Update Volume
-    if (volumeSeriesRef.current) {
-      if (showVolume) {
-        const volumeData = cleanCandles.map(c => ({
-          time: c.time,
-          value: c.volume,
-          color: c.close >= c.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)'
-        }));
-        volumeSeriesRef.current.setData(volumeData);
-      } else {
-        volumeSeriesRef.current.setData([]);
-      }
-    }
-
     // Compute Indicators
-    const ema9Data = [];
-    const ema21Data = [];
-    const sma50Data = [];
+    const ema5Data = [];
+    const ema13Data = [];
+    const ema89Data = [];
     const bbUpperData = [];
     const bbLowerData = [];
+    const rsiData = [];
+    const rsiObData = [];
+    const rsiOsData = [];
 
     for (let i = 0; i < cleanCandles.length; i++) {
       const subSlice = cleanCandles.slice(0, i + 1);
 
-      if (showEMA9 && i >= 8) {
-        const ema9 = calculateEMA(subSlice, 9);
-        if (ema9 !== null && !isNaN(ema9)) ema9Data.push({ time: cleanCandles[i].time, value: ema9 });
+      // EMA 5
+      if (showEMA5 && i >= 4) {
+        const ema5 = calculateEMA(subSlice, 5);
+        if (ema5 !== null && !isNaN(ema5)) ema5Data.push({ time: cleanCandles[i].time, value: ema5 });
       }
 
-      if (showEMA21 && i >= 20) {
-        const ema21 = calculateEMA(subSlice, 21);
-        if (ema21 !== null && !isNaN(ema21)) ema21Data.push({ time: cleanCandles[i].time, value: ema21 });
+      // EMA 13
+      if (showEMA13 && i >= 12) {
+        const ema13 = calculateEMA(subSlice, 13);
+        if (ema13 !== null && !isNaN(ema13)) ema13Data.push({ time: cleanCandles[i].time, value: ema13 });
       }
 
-      if (showSMA50 && i >= 49) {
-        const sma50 = calculateSMA(subSlice, 50);
-        if (sma50 !== null && !isNaN(sma50)) sma50Data.push({ time: cleanCandles[i].time, value: sma50 });
+      // EMA 89
+      if (showEMA89) {
+        const ema89Period = Math.min(89, subSlice.length);
+        if (subSlice.length >= 20) {
+          const ema89 = calculateEMA(subSlice, ema89Period);
+          if (ema89 !== null && !isNaN(ema89)) ema89Data.push({ time: cleanCandles[i].time, value: ema89 });
+        }
       }
 
+      // Bollinger Bands
       if (showBollinger && i >= 19) {
         const bb = calculateBollingerBands(subSlice, 20, 2);
         if (bb && bb.upper !== null && !isNaN(bb.upper)) bbUpperData.push({ time: cleanCandles[i].time, value: bb.upper });
         if (bb && bb.lower !== null && !isNaN(bb.lower)) bbLowerData.push({ time: cleanCandles[i].time, value: bb.lower });
       }
+
+      // RSI (14 Period) Sub-chart
+      if (showRSI && i >= 14) {
+        const rsiVal = calculateRSI(subSlice, 14);
+        if (rsiVal !== null && !isNaN(rsiVal)) {
+          rsiData.push({ time: cleanCandles[i].time, value: rsiVal });
+          rsiObData.push({ time: cleanCandles[i].time, value: 70 });
+          rsiOsData.push({ time: cleanCandles[i].time, value: 30 });
+        }
+      }
     }
 
-    if (ema9SeriesRef.current) ema9SeriesRef.current.setData(showEMA9 ? ema9Data : []);
-    if (ema21SeriesRef.current) ema21SeriesRef.current.setData(showEMA21 ? ema21Data : []);
-    if (sma50SeriesRef.current) sma50SeriesRef.current.setData(showSMA50 ? sma50Data : []);
+    if (ema5SeriesRef.current) ema5SeriesRef.current.setData(showEMA5 ? ema5Data : []);
+    if (ema13SeriesRef.current) ema13SeriesRef.current.setData(showEMA13 ? ema13Data : []);
+    if (ema89SeriesRef.current) ema89SeriesRef.current.setData(showEMA89 ? ema89Data : []);
     if (bbUpperSeriesRef.current) bbUpperSeriesRef.current.setData(showBollinger ? bbUpperData : []);
     if (bbLowerSeriesRef.current) bbLowerSeriesRef.current.setData(showBollinger ? bbLowerData : []);
+    if (rsiSeriesRef.current) rsiSeriesRef.current.setData(showRSI ? rsiData : []);
+    if (rsiOverboughtSeriesRef.current) rsiOverboughtSeriesRef.current.setData(showRSI ? rsiObData : []);
+    if (rsiOversoldSeriesRef.current) rsiOversoldSeriesRef.current.setData(showRSI ? rsiOsData : []);
 
-  }, [candles, showEMA9, showEMA21, showSMA50, showBollinger, showVolume]);
+  }, [candles, showEMA5, showEMA13, showEMA89, showBollinger, showRSI]);
 
   // Update Markers on Candlestick Series (User annotations + AI Pattern markers)
   useEffect(() => {
@@ -329,30 +361,30 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
           </span>
 
           <button
-            onClick={() => setShowEMA9(!showEMA9)}
+            onClick={() => setShowEMA5(!showEMA5)}
             className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold transition border ${
-              showEMA9 ? 'bg-blue-600/20 text-blue-400 border-blue-500' : 'bg-dark-800 text-gray-500 border-dark-600 opacity-60'
+              showEMA5 ? 'bg-blue-600/20 text-blue-400 border-blue-500' : 'bg-dark-800 text-gray-500 border-dark-600 opacity-60'
             }`}
           >
-            EMA 9
+            EMA 5
           </button>
 
           <button
-            onClick={() => setShowEMA21(!showEMA21)}
+            onClick={() => setShowEMA13(!showEMA13)}
             className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold transition border ${
-              showEMA21 ? 'bg-orange-600/20 text-orange-400 border-orange-500' : 'bg-dark-800 text-gray-500 border-dark-600 opacity-60'
+              showEMA13 ? 'bg-orange-600/20 text-orange-400 border-orange-500' : 'bg-dark-800 text-gray-500 border-dark-600 opacity-60'
             }`}
           >
-            EMA 21
+            EMA 13
           </button>
 
           <button
-            onClick={() => setShowSMA50(!showSMA50)}
+            onClick={() => setShowEMA89(!showEMA89)}
             className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold transition border ${
-              showSMA50 ? 'bg-purple-600/20 text-purple-400 border-purple-500' : 'bg-dark-800 text-gray-500 border-dark-600 opacity-60'
+              showEMA89 ? 'bg-purple-600/20 text-purple-400 border-purple-500' : 'bg-dark-800 text-gray-500 border-dark-600 opacity-60'
             }`}
           >
-            SMA 50
+            EMA 89
           </button>
 
           <button
@@ -365,12 +397,12 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
           </button>
 
           <button
-            onClick={() => setShowVolume(!showVolume)}
+            onClick={() => setShowRSI(!showRSI)}
             className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold transition border ${
-              showVolume ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500' : 'bg-dark-800 text-gray-500 border-dark-600 opacity-60'
+              showRSI ? 'bg-fuchsia-600/20 text-fuchsia-400 border-fuchsia-500' : 'bg-dark-800 text-gray-500 border-dark-600 opacity-60'
             }`}
           >
-            Vol
+            RSI (14)
           </button>
         </div>
       </div>
