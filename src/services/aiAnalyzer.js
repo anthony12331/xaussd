@@ -82,7 +82,7 @@ export function calculateBollingerBands(data, period = 20, multiplier = 2) {
 }
 
 // Main AI Analysis Evaluator
-export function analyzeMarket(candles, currentPrice, symbolKey = 'XAUUSD') {
+export function analyzeMarket(candles, currentPrice, symbolKey = 'XAUUSD', dxyData = null) {
   if (!candles || candles.length < 20) {
     return {
       signal: 'NEUTRAL',
@@ -154,6 +154,17 @@ export function analyzeMarket(candles, currentPrice, symbolKey = 'XAUUSD') {
   } else if (bb.upper > 0 && currentPrice >= bb.upper) {
     score -= 20;
     reasons.push('Price is testing upper Bollinger Band (over-extended upper resistance).');
+  }
+
+  // 5. DXY Dollar Index Inverse Correlation Influence (for Gold XAUUSD)
+  if (dxyData && (symbolKey === 'XAUUSD' || symbolKey === 'XUDUSD')) {
+    if (dxyData.dxyChange > 0.15) {
+      score -= 20;
+      reasons.push(`DXY US Dollar Index is surging (+${dxyData.dxyChange}%), exerting inverse downward pressure on Gold.`);
+    } else if (dxyData.dxyChange < -0.15) {
+      score += 20;
+      reasons.push(`DXY US Dollar Index is dropping (${dxyData.dxyChange}%), fueling bullish rally momentum in Gold.`);
+    }
   }
 
   // Determine Signal State

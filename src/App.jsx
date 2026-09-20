@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { PriceFeedManager } from './services/priceFeed';
 import { analyzeMarket } from './services/aiAnalyzer';
 import { TradingEngine } from './services/tradingEngine';
+import { DXYTrackerService } from './services/newsService';
 
 import Navbar from './components/Navbar';
 import TradingChart from './components/TradingChart';
@@ -11,6 +12,8 @@ import PositionsTable from './components/PositionsTable';
 import AIBotConfigModal from './components/AIBotConfigModal';
 import AIChatModal from './components/AIChatModal';
 import WelcomeCapitalModal from './components/WelcomeCapitalModal';
+import DXYCorrelationCard from './components/DXYCorrelationCard';
+import MacroNewsPanel from './components/MacroNewsPanel';
 
 export default function App() {
   const [selectedSymbol, setSelectedSymbol] = useState('XAUUSD');
@@ -22,6 +25,7 @@ export default function App() {
   const [feedData, setFeedData] = useState({ currentPrice: 0, candles: [] });
   const [previousPrice, setPreviousPrice] = useState(0);
 
+  const [dxyData, setDxyData] = useState(null);
   const [aiAnalysis, setAiAnalysis] = useState(null);
 
   // Trading engine state
@@ -48,11 +52,17 @@ export default function App() {
   // Services singleton references
   const priceFeedRef = useRef(null);
   const tradingEngineRef = useRef(null);
+  const dxyTrackerRef = useRef(null);
 
   // Initialize Services
   useEffect(() => {
     priceFeedRef.current = new PriceFeedManager(selectedSymbol, timeframe);
     tradingEngineRef.current = new TradingEngine(10000);
+    dxyTrackerRef.current = new DXYTrackerService();
+
+    const unsubscribeDXY = dxyTrackerRef.current.subscribe((dxyInfo) => {
+      setDxyData(dxyInfo);
+    });
 
     const unsubscribeFeed = priceFeedRef.current.subscribe((data) => {
       setPreviousPrice(prev => feedData.currentPrice || data.currentPrice);
@@ -60,7 +70,8 @@ export default function App() {
 
       // Analyze market & update trading engine tick
       if (data.candles && data.candles.length > 0) {
-        const analysis = analyzeMarket(data.candles, data.currentPrice, selectedSymbol);
+        const dxyInfo = dxyTrackerRef.current ? dxyTrackerRef.current.getData() : null;
+        const analysis = analyzeMarket(data.candles, data.currentPrice, selectedSymbol, dxyInfo);
         analysis.symbolKey = selectedSymbol;
         setAiAnalysis(analysis);
 
@@ -76,11 +87,14 @@ export default function App() {
     });
 
     priceFeedRef.current.start();
+    dxyTrackerRef.current.startSimulation();
 
     return () => {
       unsubscribeFeed();
       unsubscribeEngine();
+      unsubscribeDXY();
       if (priceFeedRef.current) priceFeedRef.current.stop();
+      if (dxyTrackerRef.current) dxyTrackerRef.current.stop();
     };
   }, []);
 
@@ -179,15 +193,24 @@ export default function App() {
 
       {/* Main Workspace Layout */}
       <main className="flex-1 p-3 grid grid-cols-1 lg:grid-cols-12 gap-3 max-w-[1920px] mx-auto w-full">
-        {/* Left Column (8 cols): Chart + Positions Table */}
+        {/* Left Column (8 cols): Chart + Positions Table + Macro News */}
         <div className="lg:col-span-8 flex flex-col gap-3">
           {/* Real-time Candlestick Chart */}
-          <div className="h-[480px] w-full">
+          <div className="h-[460px] w-full">
             <TradingChart
               symbolKey={selectedSymbol}
               candles={feedData.candles}
               timeframe={timeframe}
             />
+          </div>
+
+          {/* DXY Correlation & High Impact Macro News Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <DXYCorrelationCard
+              dxyData={dxyData}
+              symbolKey={selectedSymbol}
+            />
+            <MacroNewsPanel />
           </div>
 
           {/* Positions & Trade History Table */}
