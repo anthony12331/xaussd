@@ -51,6 +51,7 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
       },
       rightPriceScale: {
         borderColor: '#374151',
+        autoScale: true,
         scaleMargins: {
           top: 0.1,
           bottom: 0.25,
@@ -60,30 +61,42 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
         borderColor: '#374151',
         timeVisible: true,
         secondsVisible: timeframe === '1s' || timeframe === '5s',
+        barSpacing: 12,
+        minBarSpacing: 3,
+        rightOffset: 6,
       },
-      handleScroll: { mouseWheel: true, pressedMove: true },
+      handleScroll: { mouseWheel: true, pressedMove: true, horzTouchDrag: true },
       handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true }
     });
 
     chartRef.current = chart;
 
-    // Candlestick Series
+    // Candlestick Series (Main Price Scale)
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: '#26a69a',
       downColor: '#ef5350',
-      borderVisible: false,
+      borderVisible: true,
+      borderUpColor: '#26a69a',
+      borderDownColor: '#ef5350',
       wickUpColor: '#26a69a',
       wickDownColor: '#ef5350',
     });
     candlestickSeriesRef.current = candlestickSeries;
 
-    // Volume Series
+    // Volume Series (Isolated Overlay Scale at the bottom)
     const volumeSeries = chart.addHistogramSeries({
       color: '#26a69a',
       priceFormat: { type: 'volume' },
-      priceScaleId: '',
-      scaleMargins: { top: 0.8, bottom: 0 },
+      priceScaleId: 'volume_scale',
     });
+    
+    chart.priceScale('volume_scale').applyOptions({
+      scaleMargins: {
+        top: 0.8,
+        bottom: 0,
+      },
+    });
+
     volumeSeriesRef.current = volumeSeries;
 
     // EMA 9 Series (Blue)
