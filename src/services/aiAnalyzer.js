@@ -44,6 +44,50 @@ export function calculateRSI(data, period = 14) {
   return Number((100 - (100 / (1 + rs))).toFixed(2));
 }
 
+// Japanese Candlestick Pattern Recognition Engine
+export function detectCandlestickPattern(candles) {
+  if (!candles || candles.length < 3) return null;
+
+  const c1 = candles[candles.length - 1]; // current candle
+  const c2 = candles[candles.length - 2]; // previous candle
+  const c3 = candles[candles.length - 3]; // 2 candles ago
+
+  const body1 = Math.abs(c1.close - c1.open);
+  const body2 = Math.abs(c2.close - c2.open);
+  const range1 = c1.high - c1.low;
+  const isUp1 = c1.close >= c1.open;
+  const isUp2 = c2.close >= c2.open;
+
+  // 1. Bullish Engulfing
+  if (!isUp2 && isUp1 && c1.close > c2.open && c1.open < c2.close && body1 > body2 * 1.05) {
+    return { name: 'Bullish Engulfing', type: 'BULLISH', icon: '🟢', score: 25, desc: 'Large green candle fully engulfs previous red candle — Bullish Reversal!' };
+  }
+
+  // 2. Bearish Engulfing
+  if (isUp2 && !isUp1 && c1.close < c2.open && c1.open > c2.close && body1 > body2 * 1.05) {
+    return { name: 'Bearish Engulfing', type: 'BEARISH', icon: '🔴', score: -25, desc: 'Large red candle fully engulfs previous green candle — Bearish Reversal!' };
+  }
+
+  // 3. Bullish Hammer Pinbar
+  const lowerWick1 = Math.min(c1.open, c1.close) - c1.low;
+  const upperWick1 = c1.high - Math.max(c1.open, c1.close);
+  if (lowerWick1 > body1 * 1.8 && upperWick1 < body1 * 0.6) {
+    return { name: 'Bullish Hammer', type: 'BULLISH', icon: '🔨', score: 20, desc: 'Long lower wick indicates buyers aggressively rejecting lower prices.' };
+  }
+
+  // 4. Shooting Star Pinbar
+  if (upperWick1 > body1 * 1.8 && lowerWick1 < body1 * 0.6) {
+    return { name: 'Shooting Star', type: 'BEARISH', icon: '📉', score: -20, desc: 'Long upper wick indicates sellers aggressively rejecting higher prices.' };
+  }
+
+  // 5. Doji Indecision
+  if (body1 < range1 * 0.1) {
+    return { name: 'Doji Star', type: 'NEUTRAL', icon: '⚖️', score: 0, desc: 'Open and close prices are nearly identical — Market indecision.' };
+  }
+
+  return null;
+}
+
 // Calculate MACD (12, 26, 9)
 export function calculateMACD(data) {
   if (data.length < 26) return { macd: 0, signal: 0, histogram: 0 };
@@ -177,10 +221,17 @@ export function analyzeMarket(candles, currentPrice, symbolKey = 'XAUUSD', dxyDa
   const sma50 = calculateSMA(candles, Math.min(50, candles.length)) || currentPrice;
   const bb = calculateBollingerBands(candles, 20, 2);
   const divergence = detectRSIDivergence(candles);
+  const candlePattern = detectCandlestickPattern(candles);
 
   // Scoring algorithm (-100 to +100)
   let score = 0;
   const reasons = [];
+
+  // Candlestick Pattern Score
+  if (candlePattern) {
+    score += candlePattern.score;
+    reasons.push(`${candlePattern.icon} Pattern Detected: ${candlePattern.name} (${candlePattern.desc})`);
+  }
 
   // 1. RSI Divergence & Convergence Confluence (Highest Weight)
   if (divergence.confluenceScore !== 0) {
@@ -294,6 +345,7 @@ export function analyzeMarket(candles, currentPrice, symbolKey = 'XAUUSD', dxyDa
     reasoning: reasons.join(' '),
     holdingDuration,
     divergence,
+    candlePattern,
     actionPlan: {
       action: isBullish ? 'BUY / LONG' : signal.includes('SELL') ? 'SELL / SHORT' : 'WAIT / STANDBY',
       asset: symbolKey,

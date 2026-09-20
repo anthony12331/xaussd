@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType } from 'lightweight-charts';
 import { SYMBOLS } from '../services/priceFeed';
-import { calculateEMA, calculateSMA, calculateBollingerBands } from '../services/aiAnalyzer';
+import { calculateEMA, calculateSMA, calculateBollingerBands, detectCandlestickPattern } from '../services/aiAnalyzer';
 import { Eye, EyeOff, MapPin, Trash2, Sliders, Crosshair, PlusCircle } from 'lucide-react';
 
 export default function TradingChart({ symbolKey, candles, timeframe }) {
@@ -231,9 +231,9 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
 
   }, [candles, showEMA9, showEMA21, showSMA50, showBollinger, showVolume]);
 
-  // Update Markers on Candlestick Series
+  // Update Markers on Candlestick Series (User annotations + AI Pattern markers)
   useEffect(() => {
-    if (!candlestickSeriesRef.current) return;
+    if (!candlestickSeriesRef.current || !candles || candles.length === 0) return;
 
     const formattedMarkers = userMarkers.map(m => ({
       time: m.time,
@@ -243,8 +243,21 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
       text: `${m.label} ($${m.price})`
     }));
 
+    // Auto-detect recent Candlestick Pattern
+    const detectedPattern = detectCandlestickPattern(candles);
+    if (detectedPattern) {
+      const lastCandle = candles[candles.length - 1];
+      formattedMarkers.push({
+        time: lastCandle.time,
+        position: detectedPattern.type === 'BEARISH' ? 'aboveBar' : 'belowBar',
+        color: detectedPattern.type === 'BULLISH' ? '#26a69a' : detectedPattern.type === 'BEARISH' ? '#ef5350' : '#f0b90b',
+        shape: detectedPattern.type === 'BULLISH' ? 'arrowUp' : detectedPattern.type === 'BEARISH' ? 'arrowDown' : 'circle',
+        text: `${detectedPattern.icon} ${detectedPattern.name}`
+      });
+    }
+
     candlestickSeriesRef.current.setMarkers(formattedMarkers);
-  }, [userMarkers]);
+  }, [userMarkers, candles]);
 
   // Add Marker at clicked position
   const handleAddMarkerAtClick = () => {
