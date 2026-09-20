@@ -241,7 +241,25 @@ export class PriceFeedManager {
   }
 
   updateTick(price) {
+    if (!price || isNaN(price) || price <= 0) return;
     const config = SYMBOLS[this.symbol] || SYMBOLS['XAUUSD'];
+
+    // Auto-normalize historical candles to live price stream on first incoming live tick
+    if (!this.hasInitializedLivePrice && this.candles && this.candles.length > 0) {
+      const initialClose = this.candles[this.candles.length - 1].close;
+      if (initialClose > 0 && Math.abs(price - initialClose) > (initialClose * 0.05)) {
+        const ratio = price / initialClose;
+        this.candles = this.candles.map(c => ({
+          ...c,
+          open: Number((c.open * ratio).toFixed(config.decimals)),
+          high: Number((c.high * ratio).toFixed(config.decimals)),
+          low: Number((c.low * ratio).toFixed(config.decimals)),
+          close: Number((c.close * ratio).toFixed(config.decimals)),
+        }));
+      }
+      this.hasInitializedLivePrice = true;
+    }
+
     this.currentPrice = price;
 
     const tfSec = getTimeframeSeconds(this.timeframe);
