@@ -189,11 +189,11 @@ export default function AIAnalysisPanel({ analysis, symbolKey, currentPrice, onO
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
           <div className="bg-dark-900 border border-dark-600 p-2 rounded-lg">
-            <div className="text-gray-400 text-[10px] font-semibold">RSI (14 Period)</div>
+            <div className="text-gray-400 text-[10px] font-semibold">RSI (14) / EMA 20</div>
             <div className={`font-mono font-bold text-xs mt-0.5 ${
               indicators.rsi < 30 ? 'text-emerald-400 font-extrabold' : indicators.rsi > 70 ? 'text-rose-400 font-extrabold' : 'text-white'
             }`}>
-              {indicators.rsi} <span className="text-[9px] font-normal text-gray-400">({indicators.rsi < 30 ? 'Oversold Dip' : indicators.rsi > 70 ? 'Overbought Top' : 'Neutral'})</span>
+              {indicators.rsi} <span className="text-[10px] text-amber-400 font-semibold">({indicators.rsiEma20 || indicators.rsi})</span>
             </div>
           </div>
 

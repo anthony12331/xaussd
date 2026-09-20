@@ -16,6 +16,7 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
   const bbUpperSeriesRef = useRef(null);
   const bbLowerSeriesRef = useRef(null);
   const rsiSeriesRef = useRef(null);
+  const rsiEma20SeriesRef = useRef(null);
   const rsiOverboughtSeriesRef = useRef(null);
   const rsiOversoldSeriesRef = useRef(null);
 
@@ -87,7 +88,7 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
 
     // RSI Sub-chart Series (Isolated Overlay Scale at bottom)
     const rsiSeries = chart.addLineSeries({
-      color: '#e040fb', // Vivid Purple / Pink line for RSI
+      color: '#e040fb', // Vivid Purple / Pink line for RSI 14
       lineWidth: 1.5,
       priceScaleId: 'rsi_scale',
       title: 'RSI (14)',
@@ -97,6 +98,19 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
       },
     });
     rsiSeriesRef.current = rsiSeries;
+
+    // RSI EMA 20 Signal Line (Yellow/Amber Overlay on RSI scale)
+    const rsiEma20 = chart.addLineSeries({
+      color: '#ffb300', // Bright Amber/Yellow for RSI EMA 20
+      lineWidth: 1.5,
+      priceScaleId: 'rsi_scale',
+      title: 'RSI EMA (20)',
+      priceFormat: {
+        type: 'custom',
+        formatter: (v) => v ? v.toFixed(1) : '',
+      },
+    });
+    rsiEma20SeriesRef.current = rsiEma20;
 
     // RSI Overbought Level (70)
     const rsiOverbought = chart.addLineSeries({
@@ -278,9 +292,21 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
       if (showRSI && i >= 14) {
         const rsiVal = calculateRSI(subSlice, 14);
         if (rsiVal !== null && !isNaN(rsiVal)) {
-          rsiData.push({ time: cleanCandles[i].time, value: rsiVal });
+          rsiData.push({ time: cleanCandles[i].time, value: rsiVal, close: rsiVal });
           rsiObData.push({ time: cleanCandles[i].time, value: 70 });
           rsiOsData.push({ time: cleanCandles[i].time, value: 30 });
+        }
+      }
+    }
+
+    // Compute EMA 20 directly on RSI 14 values
+    const rsiEma20Data = [];
+    if (showRSI && rsiData.length >= 20) {
+      for (let i = 19; i < rsiData.length; i++) {
+        const rsiSlice = rsiData.slice(0, i + 1);
+        const rsiEma = calculateEMA(rsiSlice, 20);
+        if (rsiEma !== null && !isNaN(rsiEma)) {
+          rsiEma20Data.push({ time: rsiData[i].time, value: Number(rsiEma.toFixed(2)) });
         }
       }
     }
@@ -291,6 +317,7 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
     if (bbUpperSeriesRef.current) bbUpperSeriesRef.current.setData(showBollinger ? bbUpperData : []);
     if (bbLowerSeriesRef.current) bbLowerSeriesRef.current.setData(showBollinger ? bbLowerData : []);
     if (rsiSeriesRef.current) rsiSeriesRef.current.setData(showRSI ? rsiData : []);
+    if (rsiEma20SeriesRef.current) rsiEma20SeriesRef.current.setData(showRSI ? rsiEma20Data : []);
     if (rsiOverboughtSeriesRef.current) rsiOverboughtSeriesRef.current.setData(showRSI ? rsiObData : []);
     if (rsiOversoldSeriesRef.current) rsiOversoldSeriesRef.current.setData(showRSI ? rsiOsData : []);
 
@@ -412,7 +439,7 @@ export default function TradingChart({ symbolKey, candles, timeframe }) {
               showRSI ? 'bg-fuchsia-600/20 text-fuchsia-400 border-fuchsia-500' : 'bg-dark-800 text-gray-500 border-dark-600 opacity-60'
             }`}
           >
-            RSI (14)
+            RSI (14) + EMA 20
           </button>
         </div>
       </div>

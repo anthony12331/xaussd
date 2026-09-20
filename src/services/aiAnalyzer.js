@@ -215,6 +215,19 @@ export function analyzeMarket(candles, currentPrice, symbolKey = 'XAUUSD', dxyDa
   }
 
   const rsi = calculateRSI(candles, 14);
+
+  // Compute RSI EMA 20 over historical RSI values
+  const rsiHistory = [];
+  const lookback = Math.min(50, candles.length);
+  for (let i = candles.length - lookback; i <= candles.length; i++) {
+    if (i >= 14) {
+      const subSlice = candles.slice(0, i);
+      const rVal = calculateRSI(subSlice, 14);
+      rsiHistory.push({ close: rVal });
+    }
+  }
+  const rsiEma20 = (rsiHistory.length >= 20) ? (calculateEMA(rsiHistory, 20) || rsi) : rsi;
+
   const macd = calculateMACD(candles);
   const ema5 = calculateEMA(candles, 5) || currentPrice;
   const ema13 = calculateEMA(candles, 13) || currentPrice;
@@ -259,6 +272,16 @@ export function analyzeMarket(candles, currentPrice, symbolKey = 'XAUUSD', dxyDa
     } else {
       reasons.push(`EMA(5) fast line crossed below EMA(13) ($${ema5.toFixed(2)} < $${ema13.toFixed(2)}).`);
     }
+  }
+
+  // 3. RSI 14 vs RSI-EMA 20 Momentum Crossover
+  const isRSIAboveEMA20 = rsi > rsiEma20;
+  if (isRSIAboveEMA20) {
+    score += 10;
+    reasons.push(`⚡ RSI(14) is leading ABOVE its EMA(20) (${rsi} > ${rsiEma20.toFixed(1)}) — Bullish Momentum Crossover!`);
+  } else {
+    score -= 10;
+    reasons.push(`⚠️ RSI(14) is trailing BELOW its EMA(20) (${rsi} < ${rsiEma20.toFixed(1)}) — Bearish Momentum Pullback!`);
   }
 
   // 3. RSI Overbought / Oversold Signals
@@ -359,6 +382,7 @@ export function analyzeMarket(candles, currentPrice, symbolKey = 'XAUUSD', dxyDa
     },
     indicators: {
       rsi,
+      rsiEma20: Number(rsiEma20.toFixed(1)),
       macd,
       ema5: Number(ema5.toFixed(decimals)),
       ema13: Number(ema13.toFixed(decimals)),
